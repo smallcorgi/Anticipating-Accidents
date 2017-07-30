@@ -7,10 +7,10 @@ We release the code for Anticipating Accidents in Dashcam Videos.
 
 ### Requirements
 
-##### Tensoflow 0.12.1
-##### Opencv 2.4.9
-##### Matplotlib
-##### Numpy
+* Tensoflow 0.12.1
+* Opencv 2.4.9
+* Matplotlib
+* Numpy
 
 ### Model Flowchart
 ![Alt text](./img/flowchart.png "Optional title")
@@ -18,11 +18,11 @@ We release the code for Anticipating Accidents in Dashcam Videos.
 ### Usage
 
 #### The Folder for Demo
-features : [CNN features](https://drive.google.com/open?id=0B8xi2Pbo0n2gaG84ZTNKMXZtbGc) (Download the file and put it in "features" folder.)
+* features : [CNN features](https://drive.google.com/open?id=0B8xi2Pbo0n2gaG84ZTNKMXZtbGc) (Download the file and put it in "features" folder.)
 
-images : Some images for demo.
+* images : Some images for demo.
 
-model : Model.
+* model : Model.
 
 #### Run Demo
 ```
