@@ -12,6 +12,8 @@ We release the code for Anticipating Accidents in Dashcam Videos.
 ##### Matplotlib
 ##### Numpy
 
+### Model Flowchart
+![Alt text](./img/flowchart.png "Optional title")
 
 ### Usage
 
