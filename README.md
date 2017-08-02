@@ -23,7 +23,7 @@ We propose a Dynamic-Spatial-Attention (DSA) Recurrent Neural Network (RNN) for 
 
 * CNN features : [link](https://drive.google.com/open?id=0B8xi2Pbo0n2gaG84ZTNKMXZtbGc) (Download the file and put it in "dataset/features" folder.)
 
-* Annotation : [link]()
+* Annotation : [link](https://drive.google.com/file/d/0B8xi2Pbo0n2gYnNXWjA0ejZiNlU/view?usp=sharing)
 
 If you need the ground truth of object bounding box and accident location, you can download it.
 
