@@ -19,17 +19,17 @@ We propose a Dynamic-Spatial-Attention (DSA) Recurrent Neural Network (RNN) for 
 
 ### Dataset & Features
 
-Dataset : [link](http://aliensunmin.github.io/project/dashcam/) (Download the file and put it in "datatset/videos" folder.)
+* Dataset : [link](http://aliensunmin.github.io/project/dashcam/) (Download the file and put it in "datatset/videos" folder.)
 
-CNN features : [link](https://drive.google.com/open?id=0B8xi2Pbo0n2gaG84ZTNKMXZtbGc) (Download the file and put it in "dataset/features" folder.)
+* CNN features : [link](https://drive.google.com/open?id=0B8xi2Pbo0n2gaG84ZTNKMXZtbGc) (Download the file and put it in "dataset/features" folder.)
+
+* Annotation : [link]()
 
 If you need the ground truth of object bounding box and accident location, you can download it.
 
 The format of annotation:
 
-<image name, track_ID, class , x1, y1, x2, y2, 0/1 (no accident/ has accidnet)>
-
-Annotation : [link]()
+<image name, track_ID, class , x1, y1, x2, y2, 0/1 (no accident/ has accident)>
 
 ### Usage
 
