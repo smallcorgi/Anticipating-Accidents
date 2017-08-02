@@ -312,7 +312,7 @@ def vis(model_path):
     # restore model
     saver.restore(sess, model_path)
     # load data
-    for num_batch in range(3,test_num):
+    for num_batch in range(1,test_num):
         file_name = '%03d' %num_batch
         all_data = np.load(demo_path+'batch_'+file_name+'.npz')
         data = all_data['data']
@@ -323,18 +323,14 @@ def vis(model_path):
         [all_loss,pred,weight] = sess.run([loss,soft_pred,all_alphas], feed_dict={x: data, y: labels, keep: [0.0]})
         file_list = sorted(os.listdir(video_path))
         for i in range(len(ID)):
-            #if labels[i][1] != 0 and ID[i]>100:
-            if labels[i][1] == 0:
-            #if i >=0:
+            if labels[i][1] == 0 :
                 plt.figure(figsize=(14,5))
                 plt.plot(pred[i,0:90],linewidth=3.0)
                 plt.ylim(0, 1)
                 plt.ylabel('Probability')
                 plt.xlabel('Frame')
                 plt.show()
-                #file_name = file_list[(ID[i]-100+1)+50*((num_batch-1)/15)]
                 file_name = ID[i]
-                #file_name = file_list[(ID[i]-100+1)]
                 bboxes = det[i]
                 new_weight = weight[:,:,i]*255
                 counter = 0 
