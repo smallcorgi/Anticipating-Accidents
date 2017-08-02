@@ -24,9 +24,12 @@ Dataset : [link](http://aliensunmin.github.io/project/dashcam/) (Download the fi
 CNN features : [link](https://drive.google.com/open?id=0B8xi2Pbo0n2gaG84ZTNKMXZtbGc) (Download the file and put it in "dataset/features" folder.)
 
 If you need the ground truth of object bounding box and accident location, you can download it.
+
 The format of annotation:
+
 <image name, track_ID, class , x1, y1, x2, y2, 0/1 (no accident/ has accidnet)>
-annotation : [link]()
+
+Annotation : [link]()
 
 ### Usage
 
