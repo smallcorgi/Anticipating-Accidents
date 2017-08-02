@@ -1,7 +1,5 @@
 import cv2
 import tensorflow as tf
-#rnn = tf.nn.rnn
-#rnn_cell = tf.nn.rnn_cell
 import argparse
 import numpy as np
 import os
@@ -12,12 +10,12 @@ import sys
 
 ############### Global Parameters ###############
 # path
-train_path = '/media/HDD2/corgi/Conference/ACCV2016/dataset/train/'
-test_path = '/media/HDD2/corgi/Conference/ACCV2016/dataset/test/'
-demo_path = './features/'
+train_path = './dataset/features/training/'
+test_path = './dataset/features/testing/'
+demo_path = './dataset/features/testing/'
 default_model_path = './model/demo_model'
 save_path = './model/'
-image_path = './images/'
+video_path = './dataset/videos/training/positive/'
 # batch_number
 train_num = 126
 test_num = 46
@@ -27,13 +25,13 @@ test_num = 46
 
 # Parameters
 learning_rate = 0.0001
-n_epochs = 100
+n_epochs = 30
 batch_size = 10
 display_step = 10
 
 # Network Parameters
 n_input = 4096 # fc6 or fc7(1*4096)
-n_detection = 21 # number of object of each image (include image features)
+n_detection = 20 # number of object of each image (include image features)
 n_hidden = 512 # hidden layer num of LSTM
 n_img_hidden = 256 # embedding image features 
 n_att_hidden = 256 # embedding object features
@@ -84,6 +82,8 @@ def build_model():
     h_prev = tf.zeros([batch_size, n_hidden])
     # init loss 
     loss = 0.0  
+    # Mask 
+    zeros_object = tf.to_float(tf.not_equal(tf.reduce_sum(tf.transpose(x[:,:,1:n_detection,:],[1,2,0,3]),3),0)) # frame x n x b
     # Start creat graph
     for i in range(n_frames):
         # input features (Faster-RCNN fc7)
@@ -94,18 +94,16 @@ def build_model():
         n_object = tf.reshape(X[1:n_detection,:,:], [-1, n_input]) # (n_steps*batch_size, n_input)
         n_object = tf.matmul(n_object, weights['em_obj']) + biases['em_obj'] # (n x b) x h
         n_object = tf.reshape(n_object,[n_detection-1,batch_size,n_att_hidden]) # n-1 x b x h
+        n_object = tf.mul(n_object,tf.expand_dims(zeros_object[i],2))
 
         # object attention
         brcst_w = tf.tile(tf.expand_dims(weights['att_w'], 0), [n_detection-1,1,1]) # n x h x 1
         image_part = tf.batch_matmul(n_object, tf.tile(tf.expand_dims(weights['att_ua'], 0), [n_detection-1,1,1])) + biases['att_ba'] # n x b x h
         e = tf.tanh(tf.matmul(h_prev,weights['att_wa'])+image_part) # n x b x h
-        # softmax 
-        e = tf.exp(tf.reduce_sum(tf.batch_matmul(e,brcst_w),2)) # n x b
-        denomin = tf.reduce_sum(e,0) # b
         # the probability of each object
-        alphas = tf.tile(tf.expand_dims(tf.div(e,denomin),2),[1,1,n_att_hidden]) # n x b x h
+        alphas = tf.mul(tf.nn.softmax(tf.reduce_sum(tf.batch_matmul(e,brcst_w),2),0),zeros_object[i])
         # weighting sum
-        attention_list = tf.mul(alphas,n_object) # n x b x h
+        attention_list = tf.mul(tf.expand_dims(alphas,2),n_object)
         attention = tf.reduce_sum(attention_list,0) # b x h
         # concat frame & object
         fusion = tf.concat(1,[image,attention])
@@ -121,11 +119,11 @@ def build_model():
         # save the predict of each time step
         if i == 0:
             soft_pred = tf.reshape(tf.gather(tf.transpose(tf.nn.softmax(pred),(1,0)),1),(batch_size,1))
-            all_alphas = tf.expand_dims(tf.div(e,denomin),0)
+            all_alphas = tf.expand_dims(alphas,0)
         else:
             temp_soft_pred = tf.reshape(tf.gather(tf.transpose(tf.nn.softmax(pred),(1,0)),1),(batch_size,1))
             soft_pred = tf.concat(1,[soft_pred,temp_soft_pred])
-            temp_alphas = tf.expand_dims(tf.div(e,denomin),0)
+            temp_alphas = tf.expand_dims(alphas,0)
             all_alphas = tf.concat(0,[all_alphas, temp_alphas])
 
         # positive example (exp_loss)
@@ -138,14 +136,15 @@ def build_model():
         loss = tf.add(loss, temp_loss)
         
     # Define loss and optimizer
-    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss) # Adam Optimizer
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss/n_frames) # Adam Optimizer
 
     return x,keep,y,optimizer,loss,lstm_variables,soft_pred,all_alphas
 
 def train():
     # build model
     x,keep,y,optimizer,loss,lstm_variables,soft_pred,all_alphas = build_model()
-    sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True))
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2)
+    sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True,gpu_options=gpu_options))
     # mkdir folder for saving model
     if os.path.isdir(save_path) == False:
         os.mkdir(save_path)
@@ -162,18 +161,19 @@ def train():
          n_batchs = np.arange(1,train_num+1)
          np.random.shuffle(n_batchs)
          tStart_epoch = time.time()
-         for batch in range(len(n_batchs)):
-             batch_data = np.load(train_path+'batch_'+str(n_batchs[batch])+'.npz')
+         for batch in n_batchs:
+             file_name = '%03d' %batch
+             batch_data = np.load(train_path+'batch_'+file_name+'.npz')
              batch_xs = batch_data['data']
              batch_ys = batch_data['labels']
              _,batch_loss = sess.run([optimizer,loss], feed_dict={x: batch_xs, y: batch_ys, keep: [0.5]})
-             epoch_loss[batch] = batch_loss/batch_size
+             epoch_loss[batch-1] = batch_loss/batch_size
          # print one epoch
          print "Epoch:", epoch+1, " done. Loss:", np.mean(epoch_loss)
          tStop_epoch = time.time()
          print "Epoch Time Cost:", round(tStop_epoch - tStart_epoch,2), "s"
          sys.stdout.flush()
-         if (epoch+1) %10 == 0:
+         if (epoch+1) %5 == 0:
             saver.save(sess,save_path+"model", global_step = epoch+1)
             print "Training"
             test_all(sess,train_num,train_path,x,keep,y,loss,lstm_variables,soft_pred)
@@ -187,7 +187,8 @@ def test_all(sess,num,path,x,keep,y,loss,lstm_variables,soft_pred):
 
     for num_batch in range(1,num+1):
          # load test_data
-         test_all_data = np.load(path+'batch_'+str(num_batch)+'.npz')
+         file_name = '%03d' %num_batch
+         test_all_data = np.load(path+'batch_'+file_name+'.npz')
          test_data = test_all_data['data']
          test_labels = test_all_data['labels']
          [temp_loss,pred] = sess.run([loss,soft_pred], feed_dict={x: test_data, y: test_labels, keep: [0.0]})
@@ -266,19 +267,19 @@ def evaluation(all_pred,all_labels, total_time = 90, vis = False, length = None)
     new_Time[-1] = Time[rep_index[-1]]
     new_Precision[-1] = Precision[rep_index[-1]]
     new_Recall = Recall[rep_index]
-    new_Time = new_Time[-np.isnan(new_Precision)]
-    new_Recall = new_Recall[-np.isnan(new_Precision)]
-    new_Precision = new_Precision[-np.isnan(new_Precision)]
+    new_Time = new_Time[~np.isnan(new_Precision)]
+    new_Recall = new_Recall[~np.isnan(new_Precision)]
+    new_Precision = new_Precision[~np.isnan(new_Precision)]
 
     if new_Recall[0] != 0:
         AP += new_Precision[0]*(new_Recall[0]-0)
     for i in range(1,len(new_Precision)):
         AP += (new_Precision[i-1]+new_Precision[i])*(new_Recall[i]-new_Recall[i-1])/2
 
-    print "Average Precision= " + "{:.4f}".format(AP) + " ,mean Time to accident= " +"{:.4}".format(np.mean(new_Time))
+    print "Average Precision= " + "{:.4f}".format(AP) + " ,mean Time to accident= " +"{:.4}".format(np.mean(new_Time) * 5)
     sort_time = new_Time[np.argsort(new_Recall)]
     sort_recall = np.sort(new_Recall)
-    print "Recall@80%, Time to accident= " +"{:.4}".format(sort_time[np.argmin(np.abs(sort_recall-0.8))])
+    print "Recall@80%, Time to accident= " +"{:.4}".format(sort_time[np.argmin(np.abs(sort_recall-0.8))] * 5)
 
     ### visualize
 
@@ -303,57 +304,67 @@ def evaluation(all_pred,all_labels, total_time = 90, vis = False, length = None)
 def vis(model_path):
     # build model
     x,keep,y,optimizer,loss,lstm_variables,soft_pred,all_alphas = build_model()
-    sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True))
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)
+    sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True,gpu_options=gpu_options))
     init = tf.global_variables_initializer()
     sess.run(init)
     saver = tf.train.Saver()
     # restore model
     saver.restore(sess, model_path)
     # load data
-    all_data = np.load(demo_path+'demo.npz')
-    data = all_data['data']
-    labels = all_data['labels']
-    det = all_data['det']
-    ID = all_data['ID']
-    # run result
-    [all_loss,pred,weight] = sess.run([loss,soft_pred,all_alphas], feed_dict={x: data, y: labels, keep: [0.0]})
-    folder_list = sorted(os.listdir(image_path))
-    for i in range(len(ID)):
-        plt.figure(figsize=(14,5))
-        plt.plot(pred[i,0:90],linewidth=3.0)
-        plt.ylim(0, 1)
-        plt.ylabel('Probability')
-        plt.xlabel('Frame')
-        plt.show()
-        folder_name = ID[i]
-        bboxes = det[i]
-        new_weight = weight[:,:,i]*255
-        counter = 0 
-        for img in sorted(os.listdir(image_path+folder_name)):
-            frame = cv2.imread(image_path+folder_name+'/'+img)
-            attention_frame = np.zeros((frame.shape[0],frame.shape[1]),dtype = np.uint8)
-            now_weight = new_weight[counter,:]
-            new_bboxes = bboxes[counter,:,:]
-            index = np.argsort(now_weight)
-            for num_box in index:
-                if now_weight[num_box]/255.0>0.4:
-                    cv2.rectangle(frame,(new_bboxes[num_box,0],new_bboxes[num_box,1]),(new_bboxes[num_box,2],new_bboxes[num_box,3]),(0,255,0),3)
-                else:
-                    cv2.rectangle(frame,(new_bboxes[num_box,0],new_bboxes[num_box,1]),(new_bboxes[num_box,2],new_bboxes[num_box,3]),(255,0,0),2)
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                cv2.putText(frame,str(round(now_weight[num_box]/255.0*10000)/10000),(new_bboxes[num_box,0],new_bboxes[num_box,1]), font, 0.5,(0,0,255),1,cv2.CV_AA)
-                attention_frame[int(new_bboxes[num_box,1]):int(new_bboxes[num_box,3]),int(new_bboxes[num_box,0]):int(new_bboxes[num_box,2])] = now_weight[num_box]
+    for num_batch in range(3,test_num):
+        file_name = '%03d' %num_batch
+        all_data = np.load(demo_path+'batch_'+file_name+'.npz')
+        data = all_data['data']
+        labels = all_data['labels']
+        det = all_data['det']
+        ID = all_data['ID']
+        # run result
+        [all_loss,pred,weight] = sess.run([loss,soft_pred,all_alphas], feed_dict={x: data, y: labels, keep: [0.0]})
+        file_list = sorted(os.listdir(video_path))
+        for i in range(len(ID)):
+            #if labels[i][1] != 0 and ID[i]>100:
+            if labels[i][1] == 0:
+            #if i >=0:
+                plt.figure(figsize=(14,5))
+                plt.plot(pred[i,0:90],linewidth=3.0)
+                plt.ylim(0, 1)
+                plt.ylabel('Probability')
+                plt.xlabel('Frame')
+                plt.show()
+                #file_name = file_list[(ID[i]-100+1)+50*((num_batch-1)/15)]
+                file_name = ID[i]
+                #file_name = file_list[(ID[i]-100+1)]
+                bboxes = det[i]
+                new_weight = weight[:,:,i]*255
+                counter = 0 
+                cap = cv2.VideoCapture(video_path+file_name+'.mp4') 
+                ret, frame = cap.read()
+                while(ret):
+                    attention_frame = np.zeros((frame.shape[0],frame.shape[1]),dtype = np.uint8)
+                    now_weight = new_weight[counter,:]
+                    new_bboxes = bboxes[counter,:,:]
+                    index = np.argsort(now_weight)
+                    for num_box in index:
+                        if now_weight[num_box]/255.0>0.4:
+                            cv2.rectangle(frame,(new_bboxes[num_box,0],new_bboxes[num_box,1]),(new_bboxes[num_box,2],new_bboxes[num_box,3]),(0,255,0),3)
+                        else:
+                            cv2.rectangle(frame,(new_bboxes[num_box,0],new_bboxes[num_box,1]),(new_bboxes[num_box,2],new_bboxes[num_box,3]),(255,0,0),2)
+                        font = cv2.FONT_HERSHEY_SIMPLEX
+                        cv2.putText(frame,str(round(now_weight[num_box]/255.0*10000)/10000),(new_bboxes[num_box,0],new_bboxes[num_box,1]), font, 0.5,(0,0,255),1,cv2.CV_AA)
+                        attention_frame[int(new_bboxes[num_box,1]):int(new_bboxes[num_box,3]),int(new_bboxes[num_box,0]):int(new_bboxes[num_box,2])] = now_weight[num_box]
 
-            attention_frame = cv2.applyColorMap(attention_frame, cv2.COLORMAP_HOT)
-            dst = cv2.addWeighted(frame,0.6,attention_frame,0.4,0)
-            cv2.putText(dst,str(counter+1),(10,30), font, 1,(255,255,255),3)
-            cv2.imshow('result',dst)
-            c = cv2.waitKey(50)
-            if c == ord('q') and c == 27:
-                break;
-            counter += 1
-        
-        cv2.destroyAllWindows()
+                    attention_frame = cv2.applyColorMap(attention_frame, cv2.COLORMAP_HOT)
+                    dst = cv2.addWeighted(frame,0.6,attention_frame,0.4,0)
+                    cv2.putText(dst,str(counter+1),(10,30), font, 1,(255,255,255),3)
+                    cv2.imshow('result',dst)
+                    c = cv2.waitKey(50)
+                    ret, frame = cap.read()
+                    if c == ord('q') and c == 27 and ret:
+                        break;
+                    counter += 1
+              
+            cv2.destroyAllWindows()
 
 
 
@@ -361,7 +372,8 @@ def test(model_path):
     # load model
     x,keep,y,optimizer,loss,lstm_variables,soft_pred,all_alphas = build_model()
     # inistal Session
-    sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True))
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)
+    sess = tf.InteractiveSession(config=tf.ConfigProto(allow_soft_placement=True,gpu_options=gpu_options))
     init = tf.global_variables_initializer()
     sess.run(init)
     saver = tf.train.Saver()
