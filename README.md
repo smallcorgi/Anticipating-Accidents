@@ -8,7 +8,7 @@ We propose a Dynamic-Spatial-Attention (DSA) Recurrent Neural Network (RNN) for 
 
 ### Requirements
 
-##### Tensoflow 0.12.1
+##### Tensoflow 1.x
 ##### Opencv 2.4.9
 ##### Matplotlib
 ##### Numpy
