@@ -15,7 +15,7 @@ test_path = './dataset/features/testing/'
 demo_path = './dataset/features/testing/'
 default_model_path = './model/demo_model'
 save_path = './model/'
-video_path = './dataset/videos/training/positive/'
+video_path = './dataset/videos/testing/positive/'
 # batch_number
 train_num = 126
 test_num = 46
@@ -168,7 +168,6 @@ def train():
              batch_ys = batch_data['labels']
              _,batch_loss = sess.run([optimizer,loss], feed_dict={x: batch_xs, y: batch_ys, keep: [0.5]})
              epoch_loss[batch-1] = batch_loss/batch_size
-             print "Epoch:", epoch+1, " done. Loss:", np.mean(epoch_loss)
          # print one epoch
          print "Epoch:", epoch+1, " done. Loss:", np.mean(epoch_loss)
          tStop_epoch = time.time()
@@ -324,7 +323,7 @@ def vis(model_path):
         [all_loss,pred,weight] = sess.run([loss,soft_pred,all_alphas], feed_dict={x: data, y: labels, keep: [0.0]})
         file_list = sorted(os.listdir(video_path))
         for i in range(len(ID)):
-            if labels[i][1] == 0 :
+            if labels[i][1] == 1 :
                 plt.figure(figsize=(14,5))
                 plt.plot(pred[i,0:90],linewidth=3.0)
                 plt.ylim(0, 1)
