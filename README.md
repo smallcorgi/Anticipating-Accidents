@@ -3,7 +3,7 @@ By Fu-Hsiang Chan, Yu-Ting Chen, Yu Xiang, Min Sun.
 
 ### Introduction
 
-Anticipating Accidents in Dashcam Videos is initially described in a [ACCV 2016 paper](https://drive.google.com/file/d/0ByuDEGFYmWsbNkVxcUxhdDRVRkU/view).
+Anticipating Accidents in Dashcam Videos is initially described in a [ACCV 2016 paper](https://drive.google.com/file/d/0ByuDEGFYmWsbNkVxcUxhdDRVRkU/view?usp=sharing&resourcekey=0-RsYavk2HgV_D-RXpUF7NEg).
 We propose a Dynamic-Spatial-Attention (DSA) Recurrent Neural Network (RNN) for anticipating accidents in dashcam videos.
 
 ### Requirements
